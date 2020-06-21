@@ -21,7 +21,7 @@ app.get('/sessions', (req, res) => {
   INNER JOIN sessionfilmconnection 
   ON session.Session_ID = sessionfilmconnection.Session_ID  
   WHERE sessionfilmconnection.Film_ID = ${req.query.id}
-  && sessionfilmconnection.Date = ${req.query.date}
+  && sessionfilmconnection.Date = "${req.query.date[0]}"
   `, function (err, result, fields) {
     if (err) {
       console.log(err)
@@ -30,8 +30,18 @@ app.get('/sessions', (req, res) => {
   });
 });
 
+
+app.get('/seats', (req, res) => {
+  con.query("SELECT * FROM seat", function (err, result, fields) {
+    if (err) {
+      console.log(err)
+    };
+    res.send(result)
+  });
+});
+
 app.get('/sessions-date', (req, res) => {
-  con.query("SELECT DISTINCT Date FROM sessionfilmconnection", function (err, result, fields) {
+  con.query("SELECT DISTINCT DATE_FORMAT(Date, \"%Y-%m-%d\") FROM sessionfilmconnection", function (err, result, fields) {
     if (err) {
       console.log(err)
     };
@@ -46,24 +56,9 @@ app.get('/carusel-images', (req, res) => {
   });
 })
 
-// app.get('/week-films', (req, res) => {
-//   const playlist = [];
-//   con.query("SELECT session_time FROM session", function (err, session, fields) {
-//     if (err) throw err;
-//     playlist.push(...playlist, session)
-//   });
-//   con.query("SELECT * FROM films", function (err, film, fields) {
-//     if (err) throw err;
-//     playlist.push(...playlist, film)
-//   }); 
-//   res.send(playlist)
-// });
-
 app.get('/films', (req, res) => {
   if (req.query.search){
-    console.log('req.query.search', req.query.search)
     con.query(`SELECT * FROM films WHERE Film_title LIKE '${req.query.search}'`, function (err, films, fields) {
-      console.log('films', err)
       res.send(films || []);
     });
   } else {
@@ -103,6 +98,10 @@ app.get('/single-film-genre', (req, res) => {
       res.send(filmGenre)
   });
 });
+
+app.post('/book-ticket', (req, res) => {
+  console.log('req', req)
+})
 
 const port = process.env.NODE_ENV === 'production' ? 80 : 3030;
 
