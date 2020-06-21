@@ -3,6 +3,7 @@ const express = require('express');
 const app = express();
 const morgan = require('morgan');
 const cors = require('cors');
+app.use(express.json());
 
 app.use(cors());
 
@@ -25,26 +26,36 @@ app.get('/sessions', (req, res) => {
   `, function (err, result, fields) {
     if (err) {
       console.log(err)
-    };
+    }
     res.send(result)
   });
 });
 
 
 app.get('/seats', (req, res) => {
-  con.query("SELECT * FROM seat", function (err, result, fields) {
-    if (err) {
-      console.log(err)
-    };
-    res.send(result)
-  });
+    con.query(`SELECT Seat_ID from ticket WHERE Session_ID = (SELECT Session_ID from session WHERE Session_time = '${req.query.session}') &&  Film_ID = '${req.query.filmId}' && Date = '${req.query.date[0]}'`,
+        function (err, result, fields) {
+        if (err) {
+            console.log(err)
+        }
+        con.query(`SELECT * FROM seat`, function (err, remainSeats, fields) {
+            if (err) {
+                console.log(err)
+            }
+            const selectedSeats = result.map(x => x.Seat_ID);
+            const lastSeats = remainSeats.filter((el, index) => (
+                 !selectedSeats.includes(el.Seat_ID)
+            ));
+           res.send(lastSeats);
+        })
+    })
 });
 
 app.get('/sessions-date', (req, res) => {
   con.query("SELECT DISTINCT DATE_FORMAT(Date, \"%Y-%m-%d\") FROM sessionfilmconnection", function (err, result, fields) {
     if (err) {
       console.log(err)
-    };
+    }
     res.send(result)
   });
 });
@@ -54,7 +65,7 @@ app.get('/carusel-images', (req, res) => {
     if (err) throw err;
     res.send(result)
   });
-})
+});
 
 app.get('/films', (req, res) => {
   if (req.query.search){
@@ -72,7 +83,7 @@ app.get('/films', (req, res) => {
 app.get('/single-film', (req, res) => {
   con.query(`SELECT * FROM films WHERE Film_ID = ${req.query.id}`, function (err, films, fields) {
     if (err) throw err;
-    const film = films.find(x => x)
+    const film = films.find(x => x);
     res.send(film) 
  });
 });
@@ -99,13 +110,41 @@ app.get('/single-film-genre', (req, res) => {
   });
 });
 
-app.post('/book-ticket', (req, res) => {
-  console.log('req', req)
-})
+app.put('/book-ticket', async (req, res) => {
+  const Uid = Math.floor(1000 + Math.random() * 9000);
+  let customerId = null;
+  await con.query(
+`INSERT INTO customers ( Name, Surname, Customer_Code, phone ) VALUES ('${req.body.params.firstName}', '${req.body.params.lastName}', '${Uid}', '${req.body.params.phone}')`,function (err, customer, fields) {
+    if (err) {
+      console.log(err);
+    }
+    customerId = customer.insertId;
+    let sessionId = null;
+       con.query(
+          `SELECT Session_ID from session WHERE Session_time = '${req.body.params.session}'`, function (err, id, fields) {
+             if (err) {
+                console.log(err);
+             }
+             sessionId = id[0].Session_ID;
+             req.body.params.seat.forEach(id => (
+                con.query(
+                `INSERT INTO ticket  ( Session_ID, Seat_ID, Cost, Selected, Customer_ID, Film_ID, Date ) 
+                  VALUES ( '${sessionId}', '${id}', '20$', '1', '${customerId}', '${req.body.params.filmId}', '${req.body.params.date[0]}' )`,function (err, ticket, fields) {
+                    if (err) {
+                        console.log(err);
+                       }
+                     }
+                   )
+               ));
+               res.send(`${Uid}`);
+          }
+      );
+  }
+)});
 
 const port = process.env.NODE_ENV === 'production' ? 80 : 3030;
 
-const hostname = '127.0.0.1'
+const hostname = '127.0.0.1';
 
 const server = app.listen(port, hostname, () => {
     console.log('Example app listening on port', + port)
